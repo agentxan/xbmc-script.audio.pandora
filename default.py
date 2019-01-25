@@ -1,3 +1,4 @@
+# (emacs/sublime) -*- mode: python; tab-width: 4; -st-draw_white_space: 'all'; -*-
 import xbmcgui
 import xbmc
 import xbmcaddon
@@ -21,8 +22,19 @@ _NAME = _name.upper()
 
 from utils import *
 
-log( "Initializing v%s" % _version )
-log( "sys.platform = %s" % sys.platform )
+log.notice( "Initializing (v%s)" % _version )
+log.info( "sys.platform = %s" % sys.platform )
+log.info( "python / sys.version = %s.%s.%s" % sys.version_info[:3] )
+
+# override logging for pithos submodules
+# URLref: [Good logging practice in Python] http://victorlin.me/posts/2012/08/26/good-logging-practice-in-python @@http://archive.is/OzHMF @@ http://webcitation.org/6Mvjh4WEz
+# URLref: [Deleting python loggers] http://grokbase.com/t/python/python-list/11bw1zxwnd/proper-way-to-delete-kill-a-logger @@ http://archive.is/4Zkmv @@ http://webcitation.org/6Mvj3fDUS
+log.debug( "Setup logging for submodules" )
+logging.root.handlers = [] 	# PORT: not documented in 'logging' module, ? future portability issue
+handler = XBMCLogHandler()
+handler.setFormatter( logging.Formatter('{%(module)s [%(lineno)d]}: %(message)s' ) )
+handler.setLevel( logging.DEBUG )
+logging.root.addHandler( handler )
 
 dlg = xbmcgui.DialogProgress()
 dlg.create( _NAME, "Loading Script..." )
@@ -35,8 +47,11 @@ from pandagui import PandaGUI
 from pandaplayer import PandaPlayer
 
 if _settings.getSetting( "firstrun" ) != "false":
-	log( "First run... showing settings dialog" )
-	_settings.openSettings()
+	log.debug( "First run setup" )
+	if _settings.getSetting( "username" ) == "" \
+		or _settings.getSetting( "password" ) == "":
+		log.notice( "First run... showing settings dialog" )
+		_settings.openSettings()
 	_settings.setSetting( "firstrun", "false" )
 
 ## ToDO: DRY these IDs
@@ -52,8 +67,10 @@ BTN_THUMBED_UP = 338
 import urllib2
 class My_Pandora( Pandora ):
 	def __init__( self ):
+		log.debug( "My_Pandora.__init__()" )
 		Pandora.__init__( self )
 		self.set_proxy(None)
+		log.debug( "My_Pandora.__init__() :: end" )
 
 	def set_proxy(self, proxy):
 		if proxy:
@@ -74,6 +91,7 @@ class PandaException( Exception ):
 class Panda:
 
 	def __init__( self ):
+		log.debug( "Panda.__init__()" )
 		self.gui = None
 		self.pandora = None
 		self.playlist = []
@@ -98,7 +116,7 @@ class Panda:
 
 		#Proxy settings
 		if self.settings.getSetting( "proxy_enable" ) == "true":
-			log( "Proxy Enabled" )
+			log.notice( "Proxy Enabled" )
 			proxy_info = {
 				"host" : self.settings.getSetting( "proxy_server" ),
 				"port" : self.settings.getSetting( "proxy_port" ),
@@ -129,6 +147,7 @@ class Panda:
 		self.gui = PandaGUI( "script-pandora.xml", _path, self.skinName )
 
 		self.gui.setPanda( self )
+		log.debug( "Pandora.__init__() :: end" )
 
 	def auth( self ):
 		user = self.settings.getSetting( "username" )
@@ -168,18 +187,21 @@ class Panda:
 		return self.pandora.stations
 
 	def getMoreSongs( self ):
-		log( "getting more songs" )
+		log.info( "getting more songs" )
 		if self.curStation == "":
 			raise PandaException()
 		items = []
 		station = self.pandora.get_station_by_id(self.curStation);
 		songs = station.get_playlist()
 		for song in songs:
-			log( "Adding song '%s'" % song.title )
+			log.notice( "Adding song '%s'" % song.title )
+			log.info( "Downloading artwork ( for '%s')" % song.title )
 			thumbnailArtwork = self.settings.getSetting( "thumbnailArtwork" )
 			thumbnail = song.artRadio
 
+			log.debug( "Creating XBMC ListItem ( for '%s')" % song.title )
 			item = xbmcgui.ListItem( song.title )
+			log.debug( "Settings item properties ( for '%s')" % song.title )
 			item.setIconImage( thumbnail )
 			item.setThumbnailImage( thumbnail )
 			item.setProperty( "Cover", thumbnail )
@@ -196,13 +218,16 @@ class Panda:
 			if self.settings.getSetting( "scrobble_hack" ) == "true":
 				duration = 60 * ( int(self.settings.getSetting( "scrobble_hack_time" )) + 1 )
 				info["duration"] = duration
-			log( "item info = %s" % info, xbmc.LOGDEBUG )
+			log.debug( "'%s' info = %s" % (song.title, info) )
 			item.setInfo( "music", info )
 			items.append( ( song.audioUrl, item, song ) )
 
+		log.info( "Extending playlist (with '%s')" % song.title )
 		self.playlist.extend( items )
+		log.debug( "Panda.getMoreSongs() :: end" )
 
 	def playNextSong( self ):
+		log.debug( "Panda.playNextSong()" )
 		if not self.playing:
 			raise PandaException()
 		try:
@@ -229,7 +254,7 @@ class Panda:
 				self.gui.getControl(BTN_THUMB_UP).setVisible(False)
 				self.gui.getControl(BTN_THUMBED_UP).setVisible(True)
 			else:
-				log( "!!!! Unrecognised rating", xbmc.LOGWARNING )
+				log.warning( "!!!! Unrecognised rating" )
 		except IndexError:
 			self.curSong = None
 			self.getMoreSongs()
@@ -237,6 +262,7 @@ class Panda:
 		if len( self.playlist ) == 0:
 			#Out of songs, grab some more while playing
 			self.getMoreSongs()
+		log.debug( "Panda.playNextSong() :: end" )
 
 	def skipSong( self ):
 		self.skip = True
@@ -253,41 +279,54 @@ class Panda:
 		musicId = self.curSong[2].set_tired();
 
 	def main( self ):
+		log.debug( "Panda.main()" )
 		if self.die:
 			return
 		self.gui.doModal()
 		self.cleanup()
 		xbmc.sleep( 500 ) #Wait to make sure everything finishes
+		log.debug( "Panda.main() :: end" )
 
 	def stop( self ):
+		log.debug( "Panda.stop()" )
 		self.playing = False
 		if self.player and self.player.timer\
 				and self.player.timer.isAlive():
 			self.player.timer.stop()
+		log.debug( "Panda.stop() :: end" )
 
 	def cleanup( self ):
+		log.debug( "Panda.cleanup()" )
 		self.skip = False
 		if self.playing:
 			self.playing = False
 			self.player.stop()
 		del self.gui
 		del self.player
+		log.debug( "Panda.cleanup() :: end" )
 
 	def quit( self ):
+		log.debug( "Panda.quit()" )
 		if self.player and self.player.timer\
 				and self.player.timer.isAlive():
 			self.player.timer.stop()
 		if self.gui != None:
 			self.gui.close()
 		self.die = True
+		log.debug( "Panda.quit() :: end" )
 
 if __name__ == '__main__':
 	if _settings.getSetting( "username" ) == "" or \
 		_settings.getSetting( "password" ) == "":
-		xbmcgui.Dialog().ok( __name__, \
-			"Username and/or password not specified" )
+		xbmcgui.Dialog().ok( _NAME, \
+			"Required username and/or password not specified" )
 		_settings.setSetting( "firstrun", "true" )
 	else:
-		panda = Panda()
-		dlg.close()
-		panda.main()
+		try:
+			panda = Panda()
+			dlg.close()
+			panda.main()
+		except Exception as e:
+			log.error( "Unhandled exception: %s" % e )
+		except BaseException as e:
+			log.error( "Unexpected exit: %s" % e )

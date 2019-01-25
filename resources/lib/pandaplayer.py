@@ -1,40 +1,39 @@
+# (emacs/sublime) -*- mode: python; tab-width: 4; -st-draw_white_space: 'all'; -*-
 from threading import Timer
 import xbmc
 import xbmcaddon
 import os, sys
 
-_settings   = xbmcaddon.Addon()
-_name       = _settings.getAddonInfo('name')
-_version    = _settings.getAddonInfo('version')
-_path       = xbmc.translatePath( _settings.getAddonInfo('path') ).decode('utf-8')
-_lib        = xbmc.translatePath( os.path.join( _path, 'resources', 'lib' ) )
-
-sys.path.append (_lib)
-
 from utils import *
-
-_NAME = _name.upper()
 
 class PandaPlayer( xbmc.Player ):
 
 	def __init__( self, core=None, panda=None ):
+		log.debug( "PandaPlayer.__init__( CORE, PANDA )" )
 		xbmc.Player.__init__( self )
 		self.panda = panda
 		self.timer = None
 		self.playNextSong_delay = 0.5
+		log.debug( "PandaPlayer.__init__ :: end" )
 
 	def playSong( self, item ):
-		log( "playSong: item[url] %s" % item[0], xbmc.LOGDEBUG )
-		log( "playSong: item[item] %s" % item[1], xbmc.LOGDEBUG )
+		log.debug( "PandaPlayer.playSong()" )
+		log.debug( "PandaPlayer.playSong: item[url] %s" % item[0] )
+		log.debug( "PandaPlayer.playSong: item[item] %s" % item[1] )
 		self.play( item[0], item[1] )
+		log.debug( "PandaPlayer.playSong() :: end" )
 
 	def onPlayBackStarted( self ):
-		return #log( "onPlayBackStarted: %s" %self.getPlayingFile(), xbmc.LOGDEBUG )
+		try:
+			log.debug( "PandaPlayer.onPlayBackStarted: %s" %self.getPlayingFile() )
+		except:
+			pass
+		log.debug( "PandaPlayer.onPlayBackStarted :: end" )
 
 	def onPlayBackEnded( self ):
-		log( "onPlayBackEnded", xbmc.LOGDEBUG )
+		log.debug( "PandaPlayer.onPlayBackEnded()" )
 		self.stop()
-		log( "playing = %s" %self.panda.playing, xbmc.LOGDEBUG )
+		log.debug( "playing = %s" %self.panda.playing )
 		if self.timer and self.timer.isAlive():
 			self.timer.cancel()
 		if self.panda.skip:
@@ -42,11 +41,12 @@ class PandaPlayer( xbmc.Player ):
 		if self.panda.playing:
 			self.timer = Timer( self.playNextSong_delay, self.panda.playNextSong )
 			self.timer.start()
+		log.debug( "PandaPlayer.onPlayBackEnded() :: end" )
 
 	def onPlayBackStopped( self ):
-		log( "onPlayBackStopped", xbmc.LOGDEBUG )
+		log.debug( "PandaPlayer.onPlayBackStopped()" )
 		self.stop()
-		log( "playing = %s" %self.panda.playing, xbmc.LOGDEBUG )
+		log.debug( "playing = %s" %self.panda.playing )
 		if self.timer and self.timer.isAlive():
 			self.timer.cancel()
 		if self.panda.playing and self.panda.skip:
@@ -55,6 +55,7 @@ class PandaPlayer( xbmc.Player ):
 			self.timer.start()
 		else:
 			if xbmc.getCondVisibility('Skin.HasSetting(PandoraVis)'):
-				# turn off visualization
+				# show UI
 				xbmc.executebuiltin('Skin.Reset(PandoraVis)')
 			self.panda.stop()
+		log.debug( "PandaPlayer.onPlayBackStopped() :: end" )
