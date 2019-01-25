@@ -74,7 +74,7 @@ class My_Pandora( Pandora ):
 
 	def set_proxy(self, proxy):
 		if proxy:
-			proxy_handler = urllib2.ProxyHandler({'http': proxy})
+			proxy_handler = urllib2.ProxyHandler({'http': proxy, 'https': proxy})
 			self.opener = urllib2.build_opener(proxy_handler)
 			## _or_ set_url_opener()
 			#self.set_url_opener( urllib2.build_opener(proxy_handler) )
